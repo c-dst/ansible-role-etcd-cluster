@@ -1,0 +1,71 @@
+---
+# Default Etcd directory
+etcd_data_dir: /var/lib/etcd
+etcd_log_dir: /var/log/etcd
+etcd_bin_dir: /usr/local/bin
+etcd_sbin_dir: /usr/local/sbin
+etcd_config_dir: /etc/etcd
+
+# Etcd package requirements
+etcd_packages: []
+
+# Etcd version
+etcd_version: "3.5.2"
+etcd_url: "https://github.com/etcd-io/etcd/releases/download/v{{ etcd_version }}/etcd-v{{ etcd_version }}-linux-amd64.tar.gz"
+etcd_checksum_url: "https://github.com/etcd-io/etcd/releases/download/v{{ etcd_version }}/SHA256SUMS"
+
+# Default Etcd ports values
+etcd_defaults:
+  port: 2379
+  peer_port: 2380
+
+# enable ssl
+etcd_enable_ssl: true
+
+# etcd user / group
+etcd_user: etcd
+etcd_group: etcd
+
+# Number of committed transactions to trigger a snapshot to disk.
+etcd_snapshot_count: 100000
+# Maximum number of snapshots - unlimited 0
+etcd_max_snapshots: 10
+
+# Time (in milliseconds) of a heartbeat interval.
+etcd_heartbeat_interval: 100
+
+# Whether to fast-forward initial election ticks on boot for faster election.
+etcd_initial_election_tick_advance: true
+# Time (in milliseconds) for an election to timeout. See tuning documentation for details.
+etcd_election_timeout: 1000
+
+# Database compaction - Default disabled
+etcd_compaction_retention: 0
+etcd_compaction_mode: 'periodic'
+
+# Log options - https://etcd.io/docs/v3.5/op-guide/configuration/#logging
+etcd_log_logger: zap
+etcd_log_outputs: "{{ etcd_log_dir }}/etcd.log"
+etcd_log_level: info
+etcd_log_rotation: true
+etcd_log_rotation_config:
+  maxsize: 100
+  maxage: 1
+  maxbackups: 180
+  localtime: true
+  compress: true
+
+# TLS file configuration
+etcd_cert_file: /etc/ssl/etcd/etcd.crt
+etcd_cert_key: /etc/ssl/etcd/etcd.key
+etcd_cert_cafile: /etc/ssl/etcd/ca.crt
+
+# etcd cluster token
+etcd_cluster_token: cluster-token-to-change
+
+# etcd cluster configuration
+etcd_cluster: []
+# etcd_cluster:
+#   - fqdn:                         Required:  etcd node fqdn
+#     port:                         Optionnal: etcd port number      - Default: (etcd_defaults.port)
+#     peer_port:                    Optionnal: etcd peer port number - Default: (etcd_defaults.peer_port)

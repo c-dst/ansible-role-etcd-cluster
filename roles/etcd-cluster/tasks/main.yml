@@ -1,0 +1,120 @@
+---
+- name: Ensure task is run on tested distrib
+  assert:
+    that:
+      - ansible_distribution in ['Ubuntu']
+  tags: always
+
+- name: Ensure task is run on tested distrib release
+  assert:
+    that:
+      - ansible_distribution_version in ['20.04']
+  when: ansible_distribution == 'Ubuntu'
+  tags: always
+
+# Config check and facts settings
+- name: Ensure cluster tocken isn't set to default value
+  assert:
+    that:
+      - etcd_cluster_token != 'cluster-token-to-change'
+  tags: always
+
+- name: Ensure current host is present in cluster config
+  assert:
+    that:
+      - (etcd_cluster | selectattr('fqdn', 'eq', ansible_fqdn) | list | length) == 1
+  tags: always
+
+- name: Retrieve current host settings from cluster config
+  ansible.builtin.set_fact:
+    etcd_currenthost: "{{ (etcd_cluster | selectattr('fqdn', 'eq', ansible_fqdn) | list)[0] }}"
+    etcd_schema: "{{ etcd_enable_ssl | ternary('https', 'http') }}"
+  tags: always
+
+
+- name: Install etcd packages requirements
+  ansible.builtin.apt:
+    name: "{{ item }}"
+    state: present
+    update_cache: yes
+  loop: "{{ etcd_packages }}"
+
+
+- name: Add group "{{ etcd_group }}"
+  group:
+    name: "{{ etcd_group }}"
+    system: true
+    state: present
+
+- name: Add user "{{ etcd_user }}"
+  ansible.builtin.user:
+    name: "{{ etcd_user }}"
+    shell: /sbin/nologin
+    system: true
+    groups: "{{ etcd_group }}"
+
+
+- name: Download etcd archive
+  ansible.builtin.get_url:
+    url: "{{ etcd_url }}"
+    dest: "/tmp/etcd-v{{ etcd_version }}.tar.gz"
+    checksum: "sha256:{{ etcd_checksum_url }}"
+
+
+- name: Unarchive etcd
+  ansible.builtin.unarchive:
+    src: "/tmp/etcd-v{{ etcd_version }}.tar.gz"
+    dest: "/tmp/"
+    owner: root
+    group: root
+    remote_src: yes
+
+
+- name: Install etcd
+  ansible.builtin.copy:
+    src: "/tmp/etcd-v{{ etcd_version }}-linux-amd64/{{ item.bin }}"
+    dest: "{{ item.dest }}"
+    owner: root
+    group: root
+    mode: '755'
+    remote_src: yes
+  loop:
+    - { bin: etcd, dest: "{{ etcd_sbin_dir }}" }
+    - { bin: etcdctl, dest: "{{ etcd_bin_dir }}" }
+    - { bin: etcdutl, dest: "{{ etcd_bin_dir }}" }
+
+
+- name: Create etcd data directory
+  ansible.builtin.file:
+    path: "{{ item }}"
+    owner: "{{ etcd_user }}"
+    group: "{{ etcd_group }}"
+    mode: '700'
+    state: directory
+  loop:
+    - "{{ etcd_data_dir }}"
+    - "{{ etcd_config_dir }}"
+    - "{{ etcd_log_dir }}"
+
+
+- name: Install etcd systemd units
+  ansible.builtin.template:
+    src: etcd.service.j2
+    dest: "/usr/lib/systemd/system/etcd.service"
+    owner: root
+    group: root
+    mode: '644'
+  notify:
+    - reload systemd
+    - restart etcd
+
+- name: Enable and start etcd service
+  ansible.builtin.systemd:
+    name: etcd
+    state: started
+    enabled: true
+    daemon_reload: true
+
+# - name: setup firewall
+#   debug:
+#     msg: TBD - Firewall
