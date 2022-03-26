@@ -17,15 +17,19 @@ ExecStart={{ etcd_sbin_dir }}/etcd \
   --initial-election-tick-advance \
   --election-timeout '{{ etcd_election_timeout }}' \
 {% endif %}
+{% if etcd_enable_metrics %}
+  --metrics {{ etcd_metrics }}
+  --listen-metrics-urls http://{{ current_host_ip }}:{{ etcd_currenthost.metrics_port | default ( etcd_defaults.metrics_port ) }} \
+{% endif %}
 {% if etcd_enable_ssl %}
   --client-cert-auth \
   --trusted-ca-file {{ etcd_cert_cafile }} \
-  --cert-file {{ etcd_cert_file }} \
-  --key-file {{ etcd_cert_key }} \
+  --cert-file {{ etcd_server_cert_file }} \
+  --key-file {{ etcd_server_cert_key }} \
   --peer-client-cert-auth \
   --peer-trusted-ca-file {{ etcd_cert_cafile }} \
-  --peer-cert-file {{ etcd_cert_file }} \
-  --peer-key-file {{ etcd_cert_key }} \
+  --peer-cert-file {{ etcd_peer_cert_file }} \
+  --peer-key-file {{ etcd_peer_cert_key }} \
 {% endif %}
   --initial-advertise-peer-urls {{ etcd_schema }}://{{ current_host_ip }}:{{ etcd_currenthost.peer_port | default ( etcd_defaults.peer_port ) }} \
   --listen-peer-urls {{ etcd_schema }}://{{  current_host_ip  }}:{{ etcd_currenthost.peer_port | default ( etcd_defaults.peer_port ) }} \
@@ -33,7 +37,7 @@ ExecStart={{ etcd_sbin_dir }}/etcd \
   --advertise-client-urls {{ etcd_schema }}://{{ current_host_ip }}:{{ etcd_currenthost.port | default ( etcd_defaults.port ) }} \
   --initial-cluster {% for node in etcd_cluster %}{{ node.fqdn.split('.').0 }}={{ etcd_schema }}://{{ lookup('community.general.dig', node.fqdn ) }}:{{ node.port | default ( etcd_defaults.peer_port ) }}{% if loop.index < loop.length %},{% endif %}{% endfor %} \
   --initial-cluster-token {{ etcd_cluster_token }} \
-  --initial-cluster-state new \
+  --initial-cluster-state {{ etcd_cluster_state }} \
 {% if etcd_compaction_retention > 0 %}
   --auto-compaction-retention {{ etcd_compaction_retention }} \
   --auto-compaction-mode {{ etcd_compaction_mode }} \
