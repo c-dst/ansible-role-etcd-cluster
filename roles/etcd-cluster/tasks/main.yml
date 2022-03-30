@@ -31,6 +31,11 @@
     etcd_schema: "{{ etcd_enable_ssl | ternary('https', 'http') }}"
   tags: always
 
+# Firewall
+- name: Determine installed firewall
+  include_tasks: check_firewall.yml
+  tags: always
+
 
 - name: Install etcd packages requirements
   ansible.builtin.apt:
@@ -115,6 +120,7 @@
     enabled: true
     daemon_reload: true
 
-# - name: setup firewall
-#   debug:
-#     msg: TBD - Firewall
+
+- name: update firewall rules
+  include_tasks: firewall.yml
+  tags: firewall
