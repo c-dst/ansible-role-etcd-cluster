@@ -5,7 +5,7 @@
   - name: Allow etcd advertise port {{ etcd_currenthost.port | default ( etcd_defaults.port ) }}
     ansible.posix.firewalld:
       rich_rule: "rule family='ipv4' port port='{{ etcd_currenthost.port | default ( etcd_defaults.port ) }}'' protocol='tcp' accept"
-      zone: 'insaservices'
+      zone: 'public'
       state: enabled
       permanent: yes
       immediate: yes
@@ -15,7 +15,7 @@
   - name: Allow etcd peer port {{ etcd_currenthost.peer_port | default ( etcd_defaults.peer_port ) }}
     ansible.posix.firewalld:
       rich_rule: "rule family='ipv4' port port='{{ etcd_currenthost.peer_port | default ( etcd_defaults.peer_port )  }}'' protocol='tcp' accept"
-      zone: 'insaservices'
+      zone: 'public'
       state: enabled
       permanent: yes
       immediate: yes
@@ -24,7 +24,7 @@
   - name: Disable etcd peer port {{ etcd_currenthost.peer_port | default ( etcd_defaults.peer_port ) }}
     ansible.posix.firewalld:
       rich_rule: "rule family='ipv4' port port='{{ etcd_currenthost.peer_port | default ( etcd_defaults.peer_port )  }}'' protocol='tcp' accept"
-      zone: 'insaservices'
+      zone: 'public'
       state: disabled
       permanent: yes
       immediate: yes
@@ -34,7 +34,7 @@
   - name: Allow etcd metrics port {{ etcd_currenthost.metrics_port | default ( etcd_defaults.metrics_port ) }}
     ansible.posix.firewalld:
       rich_rule: "rule family='ipv4' port port='{{ etcd_currenthost.metrics_port | default ( etcd_defaults.metrics_port ) }}'' protocol='tcp' accept"
-      zone: 'insaservices'
+      zone: 'public'
       state: enabled
       permanent: yes
       immediate: yes
@@ -43,7 +43,7 @@
   - name: Disable etcd metrics port {{ etcd_currenthost.metrics_port | default ( etcd_defaults.metrics_port ) }}
     ansible.posix.firewalld:
       rich_rule: "rule family='ipv4' port port='{{ etcd_currenthost.metrics_port | default ( etcd_defaults.metrics_port ) }}'' protocol='tcp' accept"
-      zone: 'insaservices'
+      zone: 'public'
       state: disabled
       permanent: yes
       immediate: yes
