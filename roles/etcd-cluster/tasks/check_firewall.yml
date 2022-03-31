@@ -1,20 +1,20 @@
 ---
 
 - name: Set default no-firewall
-  set_fact:
+  ansible.builtin.set_fact:
     which_firewall: "no"
   tags: always
 
 # - name: Check firewall ufw
 #   block:
 #   - name: Get ufw status
-#     shell: "test -e `which ufw` && ufw status | sed 's/Status: //'"
+#     ansible.builtin.shell: "test -e `which ufw` && ufw status | sed 's/Status: //'"
 #     register: reg_ufw_status
 #     ignore_errors: true
 #     changed_when: false
 #
 #   - name: Set ufw as used
-#     set_fact:
+#     ansible.builtin.set_fact:
 #       which_firewall: "ufw"
 #     changed_when: false
 #     when: reg_ufw_status.stdout == 'active'
@@ -23,13 +23,13 @@
 - name: Check firewalld
   block:
   - name: Get firewalld status
-    shell: "test -e `which firewall-cmd` && firewall-cmd --state ; echo 1 >/dev/null "
+    ansible.builtin.shell: "test -e `which firewall-cmd` && firewall-cmd --state ; echo 1 >/dev/null "
     register: reg_firewalld_status
     ignore_errors: true
     changed_when: false
 
   - name: Set firewalld as used
-    set_fact:
+    ansible.builtin.set_fact:
       which_firewall: "firewalld"
     changed_when: false
     when: reg_firewalld_status.stdout == 'running'

@@ -1,12 +1,12 @@
 ---
 - name: Ensure task is run on tested distrib
-  assert:
+  ansible.builtin.assert:
     that:
       - ansible_distribution in ['Ubuntu']
   tags: always
 
 - name: Ensure task is run on tested distrib release
-  assert:
+  ansible.builtin.assert:
     that:
       - ansible_distribution_version in ['20.04']
   when: ansible_distribution == 'Ubuntu'
@@ -14,13 +14,13 @@
 
 # Config check and facts settings
 - name: Ensure cluster tocken isn't set to default value
-  assert:
+  ansible.builtin.assert:
     that:
       - etcd_cluster_token != 'cluster-token-to-change'
   tags: always
 
 - name: Ensure current host is present in cluster config
-  assert:
+  ansible.builtin.assert:
     that:
       - (etcd_cluster | selectattr('fqdn', 'eq', ansible_fqdn) | list | length) == 1
   tags: always
@@ -33,7 +33,7 @@
 
 # Firewall
 - name: Determine installed firewall
-  include_tasks: check_firewall.yml
+  ansible.builtin.import_tasks: check_firewall.yml
   tags: always
 
 
@@ -46,7 +46,7 @@
 
 
 - name: Add group "{{ etcd_group }}"
-  group:
+  ansible.builtin.group:
     name: "{{ etcd_group }}"
     system: true
     state: present
@@ -122,5 +122,5 @@
 
 
 - name: update firewall rules
-  include_tasks: firewall.yml
+  ansible.builtin.import_tasks: firewall.yml
   tags: firewall
