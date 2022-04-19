@@ -10,7 +10,7 @@ etcd_config_dir: /etc/etcd
 etcd_packages: []
 
 # Etcd version
-etcd_version: "3.5.2"
+etcd_version: "3.5.3"
 etcd_url: "https://github.com/etcd-io/etcd/releases/download/v{{ etcd_version }}/etcd-v{{ etcd_version }}-linux-amd64.tar.gz"
 etcd_checksum_url: "https://github.com/etcd-io/etcd/releases/download/v{{ etcd_version }}/SHA256SUMS"
 
