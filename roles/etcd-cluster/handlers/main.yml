@@ -1,9 +1,10 @@
 ---
-# handlers file for Etcd
+## systemd - reload
 - name: reload systemd
   ansible.builtin.systemd:
     daemon_reload: true
 
+## etcd - restart
 - name: restart etcd
   ansible.builtin.service:
     name: etcd
