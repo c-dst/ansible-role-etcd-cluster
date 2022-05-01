@@ -26,18 +26,22 @@ ExecStart={{ etcd_sbin_dir }}/etcd \
   --trusted-ca-file {{ etcd_cert_cafile }} \
   --cert-file {{ etcd_server_cert_file }} \
   --key-file {{ etcd_server_cert_key }} \
+{% if etcd_cluster | length > 1 %}
   --peer-client-cert-auth \
   --peer-trusted-ca-file {{ etcd_cert_cafile }} \
   --peer-cert-file {{ etcd_peer_cert_file }} \
   --peer-key-file {{ etcd_peer_cert_key }} \
 {% endif %}
-  --initial-advertise-peer-urls {{ etcd_schema }}://{{ current_host_ip }}:{{ etcd_currenthost.peer_port | default ( etcd_defaults.peer_port ) }} \
-  --listen-peer-urls {{ etcd_schema }}://{{  current_host_ip  }}:{{ etcd_currenthost.peer_port | default ( etcd_defaults.peer_port ) }} \
+{% endif %}
   --listen-client-urls {{ etcd_schema }}://{{  current_host_ip  }}:{{ etcd_currenthost.port | default ( etcd_defaults.port ) }},{{ etcd_schema }}://127.0.0.1:{{ etcd_currenthost.port | default ( etcd_defaults.port ) }} \
   --advertise-client-urls {{ etcd_schema }}://{{ current_host_ip }}:{{ etcd_currenthost.port | default ( etcd_defaults.port ) }} \
-  --initial-cluster {% for node in etcd_cluster %}{{ node.fqdn.split('.').0 }}={{ etcd_schema }}://{{ lookup('community.general.dig', node.fqdn ) }}:{{ node.port | default ( etcd_defaults.peer_port ) }}{% if loop.index < loop.length %},{% endif %}{% endfor %} \
+{% if etcd_cluster | length > 1 %}
+  --initial-advertise-peer-urls {{ etcd_schema }}://{{ current_host_ip }}:{{ etcd_currenthost.peer_port | default ( etcd_defaults.peer_port ) }} \
+  --listen-peer-urls {{ etcd_schema }}://{{  current_host_ip  }}:{{ etcd_currenthost.peer_port | default ( etcd_defaults.peer_port ) }} \
+  --initial-cluster {% for node in etcd_cluster %}{%if not node.remove is defined or not node.remove %}{{ node.fqdn.split('.').0 }}={{ etcd_schema }}://{{ lookup('community.general.dig', node.fqdn ) }}:{{ node.port | default ( etcd_defaults.peer_port ) }}{% if loop.index < loop.length %},{% endif %}{% endif %}{% endfor %} \
   --initial-cluster-token {{ etcd_cluster_token }} \
   --initial-cluster-state {{ etcd_cluster_state }} \
+{% endif %}
 {% if etcd_compaction_retention > 0 %}
   --auto-compaction-retention {{ etcd_compaction_retention }} \
   --auto-compaction-mode {{ etcd_compaction_mode }} \
