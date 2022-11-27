@@ -9,33 +9,49 @@ etcd_config_dir: /etc/etcd
 # Etcd package requirements
 etcd_packages: []
 
+# Etcd binaries list
+etcd_binaries:
+  - { bin: etcd, path: "{{ etcd_sbin_dir }}" }
+  - { bin: etcdctl, path: "{{ etcd_bin_dir }}" }
+  - { bin: etcdutl, path: "{{ etcd_bin_dir }}" }
+
 # Etcd version
-etcd_version: "3.5.4"
+etcd_version: "3.5.6"
 etcd_url: "https://github.com/etcd-io/etcd/releases/download/v{{ etcd_version }}/etcd-v{{ etcd_version }}-linux-amd64.tar.gz"
 etcd_checksum_url: "https://github.com/etcd-io/etcd/releases/download/v{{ etcd_version }}/SHA256SUMS"
-
-# Default Etcd ports values
-etcd_defaults:
-  port: 2379
-  peer_port: 2380
-  metrics_port: 2381
 
 # Metrics - https://etcd.io/docs/v3.5/op-guide/configuration/#profiling-and-monitoring
 ## Enable metrics
 etcd_enable_metrics: true
 ## Set level of detail for exported metrics, specify 'extensive' to include server side grpc histogram metrics.
 etcd_metrics: basic
+## Metrics server list allowed to pull metrics (fqdn)
+etcd_metrics_server: []
+## Metrics server removed list (fqdn)
+etcd_metrics_server_remove: []
 
 # TLS / SSL
-## Enable TLS / SSL - https://etcd.io/docs/v3.2/op-guide/security/
+## Enable TLS / SSL - https://etcd.io/docs/v3.5/op-guide/security/
 etcd_enable_ssl: true
+
+## Enable selfsigned certicicate
+etcd_auto_tls: true
+## Selfsigned certificate validity in year
+etcd_auto_tls_validity: 5
+
+## Enable client cert auth
+### => Not valid with etcd_auto_tls == true
+etcd_enable_ssl_clientauth: true
 
 ## certificates files
 etcd_cert_cafile: "{{ etcd_config_dir}}/ca.crt"
+etcd_cert_client_cafile: "{{ etcd_cert_cafile}}"
+etcd_cert_peer_cafile: "{{ etcd_cert_cafile}}"
 etcd_server_cert_file: "{{ etcd_config_dir}}/server.crt"
 etcd_server_cert_key: "{{ etcd_config_dir}}/server.key"
 etcd_peer_cert_file: "{{ etcd_config_dir}}/peer.crt"
 etcd_peer_cert_key: "{{ etcd_config_dir}}/peer.key"
+
 
 # etcd user / group
 etcd_user: etcd
@@ -55,6 +71,10 @@ etcd_snapshot_count: 100000
 ## Maximum number of snapshots - unlimited 0
 etcd_max_snapshots: 10
 
+# Database wals
+## Maximum number of wal files - unlimited 0
+etcd_max_wals: 10
+
 # Log options - https://etcd.io/docs/v3.5/op-guide/configuration/#logging
 ## Default logger
 etcd_log_logger: zap
@@ -71,21 +91,41 @@ etcd_log_rotation_config:
   compress: true
 
 # etcd cluster configuration
+## cluster limit learner member
+etcd_cluster_max_learner_member: 1
 ## cluster token
 etcd_cluster_token: cluster-token-to-change
-## cluster initial state
-etcd_cluster_state: new
+## cluster state
+### Possible values: new, existing
+etcd_cluster_state: existing
 
 ## cluster initial election - to fast-forward initial election ticks on boot for faster election.
 etcd_initial_election_tick_advance: true
 ## Time (in milliseconds) for an election to timeout.
 etcd_election_timeout: 1000
 
+## etcd extra args to add
+etcd_extra_args: []
+
 ## cluster peer
 etcd_cluster: []
 # etcd_cluster:
-#   - fqdn:                         Required:  etcd node fqdn
-#     port:                         Optionnal: etcd port number         - Default: (etcd_defaults.port)
-#     peer_port:                    Optionnal: etcd peer port number    - Default: (etcd_defaults.peer_port)
-#     metrics_port:                 Optionnal: etcd metrics port number - Default: (etcd_defaults.metrics_port)
-#     remove:                       Optionnal: remove node from cluster - Default: false
+#   - fqdn:                Required  : String - member fqdn
+#     init_member:         Optional  : Bool   - set node for init the cluster                                                 - Default (false)
+#                                               For a cluster the requirement is to set 3 init node
+#     state:               Optionnal : String - Member state to achieve regarding the cluster   - Values (none, add, remove)  - Default ( 'none' )
+#                                               none   : no action
+#                                               add    : add this member to the cluster
+#                                               remove : remove this member from the cluster
+#                             ===> https://etcd.io/docs/v3.5/op-guide/runtime-configuration/
+#     function:            Optionnal : String - Member role in the cluster                      - Values (voting, learner)    - Default ( 'voting' )
+#
+#     port:                Optionnal : Number - etcd port number                                                              - Default ( etcd_defaults.port )
+#     peer_port:           Optionnal : Number - etcd peer port number                                                         - Default ( etcd_defaults.peer_port )
+#     metrics_port:        Optionnal : Number - etcd metrics port number                                                      - Default ( etcd_defaults.metrics_port )
+
+## cluster client
+### Allowed client fqdn list
+etcd_client: []
+### Disallowed client fqdn list
+etcd_client_remove: []

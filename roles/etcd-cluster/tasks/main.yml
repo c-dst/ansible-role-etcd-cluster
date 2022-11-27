@@ -8,7 +8,7 @@
 - name: Ensure task is run on tested distrib release
   ansible.builtin.assert:
     that:
-      - ansible_distribution_version in ['20.04']
+      - ansible_distribution_version in ['20.04', '22.04']
   when: ansible_distribution == 'Ubuntu'
   tags: always
 
@@ -17,110 +17,248 @@
   ansible.builtin.assert:
     that:
       - etcd_cluster_token != 'cluster-token-to-change'
+    fail_msg: "cluster token must be set"
+  tags: always
+
+- name: Ensure cluster state is valid
+  ansible.builtin.assert:
+    that:
+      - etcd_cluster_state in ['new', 'existing']
+    fail_msg: "cluster state must be 'new' or 'existing'"
+  tags: always
+
+- name: Ensure cluster hosts number
+  ansible.builtin.assert:
+    that:
+      - (etcd_cluster | length) >= 1
   tags: always
 
 - name: Ensure current host is present in cluster config
   ansible.builtin.assert:
     that:
       - (etcd_cluster | selectattr('fqdn', 'eq', ansible_fqdn) | list | length) == 1
+    fail_msg: "Host is not listed in cluster definition"
   tags: always
 
 - name: Retrieve current host settings from cluster config
   ansible.builtin.set_fact:
     etcd_currenthost: "{{ (etcd_cluster | selectattr('fqdn', 'eq', ansible_fqdn) | list)[0] }}"
-    etcd_schema: "{{ etcd_enable_ssl | ternary('https', 'http') }}"
+    etcd_schema: "{{ ( etcd_enable_ssl or etcd_auto_tls ) | ternary('https', 'http') }}"
   tags: always
+
+- name: Set default cluster_firstmember / currenthost_ip
+  ansible.builtin.set_fact:
+    etcd_cluster_firstmember: "{{ (etcd_cluster | selectattr('init_member', 'defined') | selectattr('init_member', 'eq', true) | list )[0].fqdn }}"
+    etcd_currenthost_ip: "{{ lookup('community.general.dig', etcd_currenthost.fqdn ) }}"
+  tags: always
+
+- name: Ensure current host 'fqdn' is valid
+  ansible.builtin.assert:
+    that:
+      - etcd_currenthost_ip != 'NXDOMAIN'
+    fail_msg: "fqdn '{{ etcd_currenthost.fqdn }}' is not valid"
+  tags: always
+
+- name: Ensure current host 'state' is valid
+  ansible.builtin.assert:
+    that:
+      - (etcd_currenthost.state | default ('none')) in ['none', 'add', 'remove']
+    fail_msg: "host state must be 'none', 'add' or 'remove'"
+  tags: always
+
+- name: Ensure current host 'function' is valid
+  ansible.builtin.assert:
+    that:
+      - (etcd_currenthost.function | default ('voting')) in ['voting', 'learner']
+    fail_msg: "host function must be 'voting' or 'learner'"
+  tags: always
+
+- name: Ensure 'learner' limit isn't reached
+  ansible.builtin.assert:
+    that:
+      - (etcd_cluster | selectattr('function', 'defined') | selectattr('function', 'eq', 'learner') | list ) | length <= etcd_cluster_max_learner_member
+    fail_msg: "etcd cluster version {{ etcd_version }} restrict only {{ etcd_cluster_max_learner_member }} 'learner' member"
+  tags: always
+
+- name: Ensure current host 'function' is valid
+  ansible.builtin.assert:
+    that:
+      - etcd_currenthost.init_member | default ('false')
+  when: etcd_cluster_state == "new"
+  tags: Always
 
 # Firewall
 - name: Determine installed firewall
   import_tasks: check_firewall.yml
   tags: always
 
-
-- name: Install etcd packages requirements
-  ansible.builtin.apt:
-    name: "{{ item }}"
-    state: present
-    update_cache: yes
-  loop: "{{ etcd_packages }}"
-
-
-- name: Add group "{{ etcd_group }}"
-  ansible.builtin.group:
-    name: "{{ etcd_group }}"
-    system: true
-    state: present
-
-- name: Add user "{{ etcd_user }}"
-  ansible.builtin.user:
-    name: "{{ etcd_user }}"
-    shell: /sbin/nologin
-    system: true
-    groups: "{{ etcd_group }}"
-
-
-- name: Download etcd archive
-  ansible.builtin.get_url:
-    url: "{{ etcd_url }}"
-    dest: "/tmp/etcd-v{{ etcd_version }}.tar.gz"
-    checksum: "sha256:{{ etcd_checksum_url }}"
-
-
-- name: Unarchive etcd
-  ansible.builtin.unarchive:
-    src: "/tmp/etcd-v{{ etcd_version }}.tar.gz"
-    dest: "/tmp/"
-    owner: root
-    group: root
-    remote_src: yes
-
-
-- name: Install etcd
-  ansible.builtin.copy:
-    src: "/tmp/etcd-v{{ etcd_version }}-linux-amd64/{{ item.bin }}"
-    dest: "{{ item.dest }}"
-    owner: root
-    group: root
-    mode: '755'
-    remote_src: yes
-  loop:
-    - { bin: etcd, dest: "{{ etcd_sbin_dir }}" }
-    - { bin: etcdctl, dest: "{{ etcd_bin_dir }}" }
-    - { bin: etcdutl, dest: "{{ etcd_bin_dir }}" }
-
-
-- name: Create etcd data directory
-  ansible.builtin.file:
-    path: "{{ item }}"
-    owner: "{{ etcd_user }}"
-    group: "{{ etcd_group }}"
-    mode: '700'
-    state: directory
-  loop:
-    - "{{ etcd_data_dir }}"
-    - "{{ etcd_config_dir }}"
-    - "{{ etcd_log_dir }}"
-
-
-- name: Install etcd systemd units
-  ansible.builtin.template:
-    src: etcd.service.j2
-    dest: "/usr/lib/systemd/system/etcd.service"
-    owner: root
-    group: root
-    mode: '644'
-  notify:
-    - reload systemd
-    - restart etcd
-
-- name: Enable and start etcd service
-  ansible.builtin.systemd:
-    name: etcd
-    state: started
-    enabled: true
-    daemon_reload: true
-
 # Firewall
 - name: update firewall rules
   import_tasks: firewall.yml
   tags: firewall
+
+- name: Install etcd
+  block:
+  - name: Install etcd packages requirements
+    ansible.builtin.apt:
+      name: "{{ item }}"
+      state: present
+      update_cache: yes
+    loop: "{{ etcd_packages }}"
+
+  - name: Add group "{{ etcd_group }}"
+    ansible.builtin.group:
+      name: "{{ etcd_group }}"
+      system: true
+      state: present
+
+  - name: Add user "{{ etcd_user }}"
+    ansible.builtin.user:
+      name: "{{ etcd_user }}"
+      shell: /sbin/nologin
+      system: true
+      groups: "{{ etcd_group }}"
+      state: present
+
+  - name: Download etcd archive
+    ansible.builtin.get_url:
+      url: "{{ etcd_url }}"
+      dest: "/tmp/etcd-v{{ etcd_version }}.tar.gz"
+      checksum: "sha256:{{ etcd_checksum_url }}"
+
+  - name: Unarchive etcd
+    ansible.builtin.unarchive:
+      src: "/tmp/etcd-v{{ etcd_version }}.tar.gz"
+      dest: "/tmp/"
+      owner: root
+      group: root
+      remote_src: yes
+
+  - name: Install etcd
+    ansible.builtin.copy:
+      src: "/tmp/etcd-v{{ etcd_version }}-linux-amd64/{{ item.bin }}"
+      dest: "{{ item.path }}"
+      owner: root
+      group: root
+      mode: '755'
+      remote_src: yes
+    loop: "{{ etcd_binaries }}"
+    notify:
+    - restart etcd
+
+  - name: Remove etcd data directory when cluster init
+    ansible.builtin.file:
+      path: "{{ etcd_data_dir }}"
+      mode: 0700
+      state: absent
+    when: etcd_cluster_state == "new" and etcd_currenthost.init_member | default ('false')
+
+  - name: Create etcd data directory
+    ansible.builtin.file:
+      path: "{{ item }}"
+      owner: "{{ etcd_user }}"
+      group: "{{ etcd_group }}"
+      mode: 0700
+      state: directory
+    loop:
+      - "{{ etcd_data_dir }}"
+      - "{{ etcd_config_dir }}"
+      - "{{ etcd_log_dir }}"
+
+  - name: Install etcd systemd units
+    ansible.builtin.template:
+      src: etcd.service.j2
+      dest: "/usr/lib/systemd/system/etcd.service"
+      owner: root
+      group: root
+      mode: '644'
+    notify:
+    - reload systemd
+    - enable start etcd
+
+  when: (etcd_currenthost.state | default ('none')) != "remove"
+  tags:
+    - install
+
+# Cluster member management
+- name: Running cluster member management
+  block:
+  - name: Get cluster health
+    shell: "{{ etcd_bin_dir }}/etcdctl endpoint health --cluster"
+    register: cluster_health
+    delegate_to: "{{ etcd_cluster_firstmember }}"
+
+  - name: Cluster - add member
+    block:
+    - name: Get cluster member list
+      shell: "{{ etcd_bin_dir }}/etcdctl member list | grep -e {{ etcd_currenthost.fqdn.split('.').0 }} -e {{ etcd_currenthost_ip }} | wc -l "
+      register: member_list
+      ignore_errors: true
+      delegate_to: "{{ etcd_cluster_firstmember }}"
+
+    - name: if not present in cluster
+      block:
+      - name: Add member - voting member
+        shell: "{{ etcd_bin_dir }}/etcdctl member add {{ etcd_currenthost.fqdn.split('.').0 }} --peer-urls={{ etcd_schema }}://{{ etcd_currenthost_ip }}:{{ etcd_currenthost.port | default ( etcd_defaults.peer_port ) }}"
+        when: (etcd_currenthost.function | default ('voting')) == "voting"
+        delegate_to: "{{ etcd_cluster_firstmember }}"
+
+      - name: Add member - non-voting member
+        shell: "{{ etcd_bin_dir }}/etcdctl member add {{ etcd_currenthost.fqdn.split('.').0 }} --peer-urls={{ etcd_schema }}://{{ etcd_currenthost_ip }}:{{ etcd_currenthost.port | default ( etcd_defaults.peer_port ) }} --learner"
+        when: (etcd_currenthost.function | default ('voting')) == "learner"
+        delegate_to: "{{ etcd_cluster_firstmember }}"
+
+      when: member_list.stdout_lines[0] == "0"
+
+    - name: Install etcd systemd units
+      ansible.builtin.template:
+        src: etcd.service.j2
+        dest: "/usr/lib/systemd/system/etcd.service"
+        owner: root
+        group: root
+        mode: '644'
+      notify:
+        - reload systemd
+        - enable start etcd
+
+    when: (etcd_currenthost.state | default ('none')) == 'add'
+
+  - name: Cluster remove member
+    block:
+    - name: Get cluster member list
+      shell: "etcdctl member list | grep {{ etcd_currenthost_ip }} | awk -F, '{print $1}'"
+      register: member_remove
+
+    - name: Remove member
+      shell: "{{ etcd_bin_dir }}/etcdctl member remove {{ member_remove.stdout_lines[0] }}"
+      delegate_to: "{{ etcd_cluster_firstmember }}"
+
+    - name: Remove group "{{ etcd_group }}"
+      ansible.builtin.group:
+        name: "{{ etcd_group }}"
+        state: absent
+
+    - name: Remove user "{{ etcd_user }}"
+      ansible.builtin.user:
+        name: "{{ etcd_user }}"
+        state: absent
+
+    - name: Remove data & binary files
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: absent
+      loop:
+        - "{{ etcd_data_dir }}"
+        - "{{ etcd_log_dir }}"
+        - "{{ etcd_config_dir }}"
+        - "/usr/lib/systemd/system/etcd.service"
+      loop_control:
+        label: "Remove {{item}}"
+      notify:
+        - reload systemd
+
+    when: (etcd_currenthost.state | default ('none')) == 'remove'
+  when: etcd_cluster_state == "existing"
+  tags:
+   - install
+

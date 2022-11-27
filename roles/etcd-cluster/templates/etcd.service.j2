@@ -12,33 +12,46 @@ ExecStart={{ etcd_sbin_dir }}/etcd \
   --data-dir {{ etcd_data_dir }} \
   --snapshot-count '{{ etcd_snapshot_count }}' \
   --max-snapshots '{{ etcd_max_snapshots }}' \
+  --max-wals '{{ etcd_max_wals }}' \
   --heartbeat-interval '{{ etcd_heartbeat_interval }}' \
 {% if etcd_initial_election_tick_advance %}
   --initial-election-tick-advance \
   --election-timeout '{{ etcd_election_timeout }}' \
 {% endif %}
 {% if etcd_enable_metrics %}
-  --metrics {{ etcd_metrics }}
+  --metrics {{ etcd_metrics }} \
   --listen-metrics-urls http://{{ current_host_ip }}:{{ etcd_currenthost.metrics_port | default ( etcd_defaults.metrics_port ) }} \
 {% endif %}
 {% if etcd_enable_ssl %}
+{% if etcd_enable_ssl_clientauth %}
   --client-cert-auth \
-  --trusted-ca-file {{ etcd_cert_cafile }} \
+  --trusted-ca-file {{ etcd_cert_client_cafile }} \
+{% endif %}
   --cert-file {{ etcd_server_cert_file }} \
   --key-file {{ etcd_server_cert_key }} \
-{% if etcd_cluster | length > 1 %}
+{% if etcd_cluster | length > 1 and etcd_enable_peer_ssl %}
   --peer-client-cert-auth \
-  --peer-trusted-ca-file {{ etcd_cert_cafile }} \
+  --peer-trusted-ca-file {{ etcd_cert_peer_cafile }} \
   --peer-cert-file {{ etcd_peer_cert_file }} \
   --peer-key-file {{ etcd_peer_cert_key }} \
 {% endif %}
+{% if etcd_auto_tls %}
+  --auto-tls \
+  --peer-auto-tls \
+  --self-signed-cert-validity {{ etcd_auto_tls_validity }} \
 {% endif %}
-  --listen-client-urls {{ etcd_schema }}://{{  current_host_ip  }}:{{ etcd_currenthost.port | default ( etcd_defaults.port ) }},{{ etcd_schema }}://127.0.0.1:{{ etcd_currenthost.port | default ( etcd_defaults.port ) }} \
+{% endif %}
   --advertise-client-urls {{ etcd_schema }}://{{ current_host_ip }}:{{ etcd_currenthost.port | default ( etcd_defaults.port ) }} \
+  --listen-client-urls {{ etcd_schema }}://{{  current_host_ip  }}:{{ etcd_currenthost.port | default ( etcd_defaults.port ) }},{{ etcd_schema }}://127.0.0.1:{{ etcd_currenthost.port | default ( etcd_defaults.port ) }} \
 {% if etcd_cluster | length > 1 %}
-  --initial-advertise-peer-urls {{ etcd_schema }}://{{ current_host_ip }}:{{ etcd_currenthost.peer_port | default ( etcd_defaults.peer_port ) }} \
   --listen-peer-urls {{ etcd_schema }}://{{  current_host_ip  }}:{{ etcd_currenthost.peer_port | default ( etcd_defaults.peer_port ) }} \
-  --initial-cluster {% for node in etcd_cluster %}{%if not node.remove is defined or not node.remove %}{{ node.fqdn.split('.').0 }}={{ etcd_schema }}://{{ lookup('community.general.dig', node.fqdn ) }}:{{ node.port | default ( etcd_defaults.peer_port ) }}{% if loop.index < loop.length %},{% endif %}{% endif %}{% endfor %} \
+  --initial-advertise-peer-urls {{ etcd_schema }}://{{ current_host_ip }}:{{ etcd_currenthost.peer_port | default ( etcd_defaults.peer_port ) }} \
+{% if etcd_cluster_state == 'new'  %}
+{# In case of new cluster only add members with 'init_member' #}
+  --initial-cluster {% for node in ( etcd_cluster | selectattr ('init_member', 'defined' ) | selectattr ('init_member', 'eq', true ) ) %}{%if ( node.state | default ('none') ) not in ['remove'] %}{{ node.fqdn.split('.').0 }}={{ etcd_schema }}://{{ lookup('community.general.dig', node.fqdn ) }}:{{ node.port | default ( etcd_defaults.peer_port ) }}{% if loop.index < loop.length %},{% endif %}{% endif %}{% endfor %} \
+{% else %}
+  --initial-cluster {% for node in etcd_cluster %}{%if ( node.state | default ('none') ) not in ['remove'] %}{{ node.fqdn.split('.').0 }}={{ etcd_schema }}://{{ lookup('community.general.dig', node.fqdn ) }}:{{ node.port | default ( etcd_defaults.peer_port ) }}{% if loop.index < loop.length %},{% endif %}{% endif %}{% endfor %} \
+{% endif %}
   --initial-cluster-token {{ etcd_cluster_token }} \
   --initial-cluster-state {{ etcd_cluster_state }} \
 {% endif %}
@@ -46,6 +59,9 @@ ExecStart={{ etcd_sbin_dir }}/etcd \
   --auto-compaction-retention {{ etcd_compaction_retention }} \
   --auto-compaction-mode {{ etcd_compaction_mode }} \
 {% endif %}
+{% for arg in etcd_extra_args %}
+  {{ arg }} \
+{% endfor %}
   --logger {{ etcd_log_logger }} \
   --log-outputs {{ etcd_log_outputs }} \
   --log-level {{ etcd_log_level }} \
