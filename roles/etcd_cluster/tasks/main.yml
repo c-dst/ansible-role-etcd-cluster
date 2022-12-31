@@ -221,14 +221,6 @@
 
     - name: Cluster - add member
       block:
-        # - name: Check cluster member
-        #   ansible.builtin.shell:
-        #     "{{ etcd_bin_dir }}/etcdctl member list {{ etcdctl_ssl_options }} | grep -e {{ ansible_fqdn.split('.').0 }} -e {{ etcd_currenthost_ip }} | wc -l"
-        #   register: member_list
-        #   # ignore_errors: true
-        #   changed_when: cluster_health.rc !=0
-        #   delegate_to: "{{ etcd_cluster_initmember }}"
-
         - name: If not present in cluster
           block:
             - name: Add member - voting member
@@ -250,9 +242,6 @@
               changed_when: member_add_nonvoting.rc !=0
               delegate_to: "{{ etcd_cluster_initmember }}"
 
-      #     when: member_list.stdout_lines[0] == "0"
-
-      # when: (etcd_currenthost.state | default('none')) == 'add' and cluster_health.rc == 0
       when: (etcd_currenthost.state | default('none')) == 'add' and member_present.rc == 0 and member_present.stdout_lines[0] == "0"
 
     - name: Install etcd systemd units
@@ -307,7 +296,6 @@
           notify:
             - Reload systemd
 
-      # when: (etcd_currenthost.state | default('none')) == 'remove' and cluster_health.rc == 0
       when: (etcd_currenthost.state | default('none')) == 'remove' and member_present.rc == 0 and member_present.stdout_lines[0] == "1"
 
   when: etcd_cluster_state == "existing"
