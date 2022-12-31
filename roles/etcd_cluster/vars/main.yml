@@ -1,0 +1,34 @@
+---
+# Default Etcd directory
+etcd_data_dir: /var/lib/etcd
+etcd_log_dir: /var/log/etcd
+etcd_bin_dir: /usr/local/bin
+etcd_sbin_dir: /usr/local/sbin
+etcd_config_dir: /etc/etcd
+
+# Etcd package requirements
+etcd_packages: []
+
+# Etcd binaries list
+etcd_binaries:
+  - { bin: etcd, path: "{{ etcd_sbin_dir }}" }
+  - { bin: etcdctl, path: "{{ etcd_bin_dir }}" }
+  - { bin: etcdutl, path: "{{ etcd_bin_dir }}" }
+
+# Etcd packages urls
+etcd_url: "https://github.com/etcd-io/etcd/releases/download/v{{ etcd_version }}/etcd-v{{ etcd_version }}-{{ ansible_system | lower }}-{{ etcd_arch[ansible_architecture] }}.tar.gz"
+etcd_checksum_url: "https://github.com/etcd-io/etcd/releases/download/v{{ etcd_version }}/SHA256SUMS"
+
+# etcd user / group
+etcd_user: etcd
+etcd_group: etcd
+
+# Default Etcd ports values
+etcd_defaults:
+  port: 2379
+  peer_port: 2380
+  metrics_port: 2381
+
+# Arch package
+etcd_arch:
+  x86_64: amd64

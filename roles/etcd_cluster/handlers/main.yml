@@ -1,30 +1,30 @@
 ---
 ## systemd - reload
-- name: reload systemd
+- name: Reload systemd
   ansible.builtin.systemd:
     daemon_reload: true
 
 ## etcd - enable
-- name: enable etcd
+- name: Enable etcd
   ansible.builtin.service:
     name: etcd
     enabled: true
 
 ## etcd - enable start
-- name: enable start etcd
+- name: Enable start etcd
   ansible.builtin.service:
     name: etcd
     enabled: true
     state: started
 
 ## etcd - restart
-- name: restart etcd
+- name: Restart etcd
   ansible.builtin.service:
     name: etcd
     state: restarted
 
 ## etcd - disable
-- name: disable etcd
+- name: Disable etcd
   ansible.builtin.service:
     name: etcd
     enabled: false

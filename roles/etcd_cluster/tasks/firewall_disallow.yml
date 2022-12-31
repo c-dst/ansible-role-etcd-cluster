@@ -1,0 +1,105 @@
+---
+- name: No firewall installed
+  ansible.builtin.debug:
+    msg: "=> No firewall rules installed"
+  when: which_firewall == "no"
+
+- name: Firewall 'firewalld' etcd
+  block:
+    - name: Set default 'firewalld' zone
+      ansible.builtin.set_fact:
+        firewalld_zones:
+          - public
+      when: firewalld_zones is not defined
+
+    - name: Set current etcd
+      ansible.builtin.set_fact:
+        etcd_current_port: "{{ etcd_currenthost.port | default(etcd_defaults.port) }}"
+        etcd_current_peer_port: "{{ etcd_currenthost.peer_port | default(etcd_defaults.peer_port) }}"
+        etcd_current_metrics_port: "{{ etcd_currenthost.metrics_port | default(etcd_defaults.metrics_port) }}"
+        etcd_firewall_member_remove: "{{ firewalld_zones | product((lookup('ansible.builtin.dict', etcd_cluster) |
+            selectattr('value.state', 'defined') | selectattr('value.state', 'eq', 'remove') | map(attribute='key'))) }}"
+        etcd_firewall_client_remove: "{{ etcd_client_remove }}"
+        etcd_firewall_metrics_remove: "{{ etcd_metrics_server_remove }}"
+      tags: Always
+
+    - name: Set etcd_firewall_member_remove for removed host
+      ansible.builtin.set_fact:
+        etcd_firewall_member_remove: "{{ firewalld_zones | product(['localhost'] +
+              (lookup('ansible.builtin.dict', etcd_cluster) | map(attribute='key'))) }}"
+        etcd_firewall_client_remove: "{{ etcd_client + etcd_client_remove }}"
+        etcd_firewall_metrics_remove: "{{ etcd_metrics_server + etcd_metrics_server_remove }}"
+      when: etcd_currenthost.state | default('none')== 'remove'
+      tags: Always
+
+    # etcd advertise port
+    - name: Disallow etcd advertise - cluster member - {{ etcd_current_port }}
+      ansible.posix.firewalld:
+        rich_rule:
+          "rule family='ipv4' source address={{ lookup('community.general.dig', item[1]) }}/32
+          port port='{{ etcd_current_port }}' protocol='tcp' accept"
+        zone: "{{ item[0] }}"
+        state: disabled
+        permanent: true
+        immediate: true
+      loop: "{{ etcd_firewall_member_remove }}"
+      loop_control:
+        label: "Disallow server : {{ item[1] | default('none') }}"
+
+    - name: Disallow etcd advertise - client - {{ etcd_current_port }}
+      ansible.posix.firewalld:
+        rich_rule:
+          "rule family='ipv4' source address={{ lookup('community.general.dig', item[1]) }}/32
+          port port='{{ etcd_current_port }}' protocol='tcp' accept"
+        zone: "{{ item[0] }}"
+        state: disabled
+        permanent: true
+        immediate: true
+      loop: "{{ firewalld_zones | product(etcd_firewall_client_remove) }}"
+      loop_control:
+        label: "Disallow client : {{ item[1] }}"
+
+    # etcd peer port
+    - name: Disallow etcd peer member - {{ etcd_current_peer_port }}
+      ansible.posix.firewalld:
+        rich_rule:
+          "rule family='ipv4' source address={{ lookup('community.general.dig', item[1]) }}/32
+          port port='{{ etcd_current_peer_port }}' protocol='tcp' accept"
+        zone: "{{ item[0] }}"
+        state: disabled
+        permanent: true
+        immediate: true
+      loop: "{{ etcd_firewall_member_remove }}"
+      loop_control:
+        label: "Disallow server : {{ item[1] | default('none') }}"
+
+    # etcd metrics port
+    - name: Disallow etcd metrics server - {{ etcd_current_metrics_port }}
+      ansible.posix.firewalld:
+        rich_rule:
+          "rule family='ipv4' source address={{ lookup('community.general.dig', item[1]) }}/32
+          port port='{{ etcd_current_metrics_port }}' protocol='tcp' accept"
+        zone: "{{ item[0] }}"
+        state: disabled
+        permanent: true
+        immediate: true
+      loop: "{{ firewalld_zones | product(etcd_firewall_metrics_remove) }}"
+      loop_control:
+        label: "Disallow metrics server : {{ item[1] }}"
+      when: etcd_enable_metrics
+
+    - name: Disable etcd metrics server - {{ etcd_current_metrics_port }}
+      ansible.posix.firewalld:
+        rich_rule:
+          "rule family='ipv4' source address={{ lookup('community.general.dig', item[1]) }}/32
+          port port='{{ etcd_current_metrics_port }}' protocol='tcp' accept"
+        zone: "{{ item[0] }}"
+        state: disabled
+        permanent: true
+        immediate: true
+      loop: "{{ firewalld_zones | product(etcd_metrics_server + etcd_metrics_server_remove) | list }}"
+      loop_control:
+        label: "Disable metrics server : {{ item[1] }}"
+      when: not etcd_enable_metrics
+
+  when: which_firewall == "firewalld"
