@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Documentation
 
-## 0.1.0 - 20221-12-31
+## 0.1.0 - 2022-12-31
 
 ### Added
 
@@ -16,7 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed / Fixed
 
 - Role rename etcd_cluster
-- Fix init check 
+- Fix init check
 - Fix firewall rules
 - Fix tls support
 - Update tasks, defaults, vars
